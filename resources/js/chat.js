@@ -19,6 +19,7 @@ export function chatApp() {
         typingDebounce:     null,
         echoChannel:        null,
         presenceChannel:    null,
+        notificationChannel:null,
 
         // Loading states
         isLoadingConversations: false,
@@ -52,6 +53,7 @@ export function chatApp() {
             this.conversations  = data.conversations;
 
             this.setupPresenceChannel();
+            this.setupNotificationChannel();
             this.$watch('messages', () => this.rebuildGroups());
         },
 
@@ -79,6 +81,21 @@ export function chatApp() {
             } catch (err) {
                 console.warn('Could not join presence channel:', err);
             }
+        },
+
+        // ── Notification channel (new messages in any conversation) ──────────
+        setupNotificationChannel() {
+            this.notificationChannel = window.Echo.private('App.Models.User.' + this.currentUser.id)
+                .listen('.message.sent', (e) => {
+                    // The active conversation's own channel already handles this message;
+                    // avoid double-processing it (double unread increment, etc.)
+                    if (this.activeConversation?.id === e.message.conversation_id) return;
+
+                    this.updateConversationPreview(e.conversation.id, e.message);
+                })
+                .error((err) => {
+                    console.warn('Notification channel error:', err);
+                });
         },
 
         syncOnlineStatus() {
